@@ -22,7 +22,7 @@ import { asyncHandler, HttpError } from "../http.js";
 import { sendPhoneOtp } from "../otp.js";
 import { exchangeSocialCode } from "../social-oauth.js";
 import { randomInt } from "node:crypto";
-import { sendEmail, signupOtpEmail, resetOtpEmail } from "../email.js";
+import { sendEmail, signupOtpEmail, resetOtpEmail, smtpErrorHint } from "../email.js";
 
 export const authRouter = Router();
 
@@ -506,9 +506,10 @@ authRouter.post(
     try {
       await sendEmail({ to: email, subject: `Verify your email – ${BRAND.name}`, html: signupOtpEmail(otp, email) });
     } catch (err) {
-      console.error("Failed to send OTP email:", err);
+      await prisma.emailOtp.deleteMany({ where: { email, type: "SIGNUP" } });
+      const hint = smtpErrorHint(err);
+      console.error("Failed to send OTP email:", hint, err);
       if (!config.isProduction) {
-        // In dev, return the OTP so testing is possible
         res.json({ ok: true, email, devOtp: otp });
         return;
       }

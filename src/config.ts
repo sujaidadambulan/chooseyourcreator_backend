@@ -124,10 +124,10 @@ export const config = {
   pgDatabase: "drcollab",
   smtpHost: process.env.SMTP_HOST ?? "smtp.gmail.com",
   smtpPort: Number(process.env.SMTP_PORT ?? 587),
-  smtpSecure: process.env.SMTP_SECURE === "true",
-  smtpUser: process.env.SMTP_USER ?? "",
-  smtpPass: process.env.SMTP_PASS ?? "",
-  emailFrom: process.env.EMAIL_FROM ?? BRAND.adminEmail,
+  smtpSecure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT ?? 587) === 465,
+  smtpUser: process.env.SMTP_USER?.trim() ?? "",
+  smtpPass: (process.env.SMTP_PASS ?? "").replace(/\s+/g, ""),
+  emailFrom: (process.env.EMAIL_FROM ?? process.env.SMTP_USER ?? BRAND.adminEmail).trim(),
   emailFromName: process.env.EMAIL_FROM_NAME ?? BRAND.name,
 };
 

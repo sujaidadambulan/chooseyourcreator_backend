@@ -6,6 +6,9 @@ let _transporter: Transporter | null = null;
 
 function getTransporter(): Transporter {
   if (!_transporter) {
+    if (!config.smtpUser || !config.smtpPass) {
+      throw new Error("SMTP is not configured (SMTP_USER / SMTP_PASS)");
+    }
     _transporter = nodemailer.createTransport({
       host: config.smtpHost,
       port: config.smtpPort,
@@ -14,12 +17,24 @@ function getTransporter(): Transporter {
         user: config.smtpUser,
         pass: config.smtpPass,
       },
+      requireTLS: config.smtpPort === 587,
       connectionTimeout: 12_000,
       greetingTimeout: 12_000,
       socketTimeout: 15_000,
     });
   }
   return _transporter;
+}
+
+export function smtpErrorHint(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/invalid login|authentication|535|534/i.test(message)) {
+    return "SMTP login failed. For Gmail use an app password (16 chars, no spaces) and set EMAIL_FROM to the same address as SMTP_USER.";
+  }
+  if (/self-signed|certificate|TLS/i.test(message)) {
+    return "SMTP TLS error. Try SMTP_PORT=587 without SMTP_SECURE, or SMTP_PORT=465 with SMTP_SECURE=true.";
+  }
+  return message;
 }
 
 export async function sendEmail({
