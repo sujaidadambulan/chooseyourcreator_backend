@@ -34,7 +34,36 @@ export function smtpErrorHint(error: unknown): string {
   if (/self-signed|certificate|TLS/i.test(message)) {
     return "SMTP TLS error. Try SMTP_PORT=587 without SMTP_SECURE, or SMTP_PORT=465 with SMTP_SECURE=true.";
   }
+  if (/timeout|ETIMEDOUT|ECONNREFUSED|unreachable|ENETUNREACH|connection closed/i.test(message)) {
+    return (
+      "SMTP connection failed. Render free web services block outbound SMTP (ports 25/465/587). " +
+      "Set RESEND_API_KEY and RESEND_FROM on the API, or upgrade Render to a paid instance to use Gmail SMTP."
+    );
+  }
   return message;
+}
+
+async function sendViaResend(to: string, subject: string, html: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) throw new Error("RESEND_API_KEY is not set");
+
+  const from =
+    process.env.RESEND_FROM?.trim() ||
+    `${config.emailFromName} <onboarding@resend.dev>`;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from, to: [to], subject, html }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Resend API ${response.status}: ${body || response.statusText}`);
+  }
 }
 
 export async function sendEmail({
@@ -46,6 +75,11 @@ export async function sendEmail({
   subject: string;
   html: string;
 }): Promise<void> {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    await sendViaResend(to, subject, html);
+    return;
+  }
+
   const transporter = getTransporter();
   await transporter.sendMail({
     from: `"${config.emailFromName}" <${config.emailFrom}>`,

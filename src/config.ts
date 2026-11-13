@@ -86,10 +86,16 @@ export function assertSafeProductionConfig(): void {
     throw new Error("API_ORIGIN is required in production (e.g. https://api.chooseyourcreator.in)");
   }
 
-  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    console.log("Email: using Resend API (HTTPS) — works on Render free tier.");
+  } else if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
     console.warn(
-      "SMTP_USER / SMTP_PASS are not set — email signup and password-reset codes will not send. " +
-        "Configure Gmail app password or another SMTP provider on Render.",
+      "Email: set RESEND_API_KEY (recommended on Render) or SMTP_USER/SMTP_PASS. " +
+        "Render free services block outbound SMTP ports 25/465/587.",
+    );
+  } else {
+    console.warn(
+      "Email: using SMTP. On Render free tier outbound SMTP is blocked — use RESEND_API_KEY or upgrade to a paid instance.",
     );
   }
 }
