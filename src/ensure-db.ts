@@ -213,7 +213,8 @@ export function applyProductionMigrations(): void {
 
   console.log("Applying database migrations (prisma migrate deploy)…");
   try {
-    execSync("npx prisma migrate deploy", {
+    const schemaPath = path.join(apiRoot, "prisma", "schema.prisma");
+    execSync(`npx prisma migrate deploy --schema "${schemaPath}"`, {
       cwd: apiRoot,
       stdio: "inherit",
       env: process.env,

@@ -1,11 +1,22 @@
 import "dotenv/config";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BRAND } from "./shared/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export const apiRoot = path.resolve(here, "..");
+/** Backend package root (contains prisma/, uploads/). Works from src/ (dev) and dist/src/ (production). */
+function resolveApiRoot(): string {
+  for (const candidate of [path.resolve(here, ".."), path.resolve(here, "../.."), path.resolve(here, "../../..")]) {
+    if (fs.existsSync(path.join(candidate, "prisma", "schema.prisma"))) {
+      return candidate;
+    }
+  }
+  return path.resolve(here, "..");
+}
+
+export const apiRoot = resolveApiRoot();
 
 const rawClientOrigin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
 export const allowedOrigins = rawClientOrigin
