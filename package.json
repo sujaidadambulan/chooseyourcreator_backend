@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/index.js",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.build.json",
     "test": "vitest run",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
