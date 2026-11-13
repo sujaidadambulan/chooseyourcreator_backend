@@ -446,9 +446,16 @@ authRouter.get(
     const next = !user.role
       ? "/get-started"
       : !onboardingComplete
-        ? (user.role === "BRAND" ? "/brand/onboarding" : "/creator/onboarding")
-        : (user.role === "BRAND" ? "/brand" : "/creator");
-    res.redirect(`${config.clientOrigin}${next}?token=${sessionToken}`);
+        ? user.role === "BRAND"
+          ? "/brand/onboarding"
+          : "/creator/onboarding"
+        : user.role === "BRAND"
+          ? "/brand"
+          : "/creator";
+    const callback = new URL("/auth/callback", config.clientOrigin);
+    callback.searchParams.set("token", sessionToken);
+    callback.searchParams.set("next", next);
+    res.redirect(callback.toString());
   }),
 );
 
