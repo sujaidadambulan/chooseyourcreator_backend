@@ -53,6 +53,38 @@ export function assertSafeProductionConfig(): void {
       throw new Error("RAZORPAY_WEBHOOK_SECRET is required when PAYMENTS_LIVE=true");
     }
   }
+
+  const googleId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
+  const googleSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
+  if (googleId || googleSecret) {
+    if (!googleId || !googleSecret) {
+      throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must both be set in production");
+    }
+    if (googleId.startsWith("http://") || googleId.startsWith("https://")) {
+      throw new Error(
+        "GOOGLE_CLIENT_ID looks like a URL. Use the Client ID from Google Cloud Console " +
+          "(ends with .apps.googleusercontent.com), not the redirect URI.",
+      );
+    }
+    if (
+      !googleId.includes(".apps.googleusercontent.com") &&
+      !/^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(googleId)
+    ) {
+      throw new Error(
+        "GOOGLE_CLIENT_ID must be the OAuth Client ID from Google Cloud Console (….apps.googleusercontent.com).",
+      );
+    }
+    if (googleSecret.startsWith("http://") || googleSecret.startsWith("https://")) {
+      throw new Error(
+        "GOOGLE_CLIENT_SECRET looks like a URL. Paste the Client secret from Google Cloud Console, not the callback URL.",
+      );
+    }
+  }
+
+  const apiOrigin = (process.env.API_ORIGIN ?? "").replace(/\/+$/, "");
+  if (!apiOrigin) {
+    throw new Error("API_ORIGIN is required in production (e.g. https://api.chooseyourcreator.in)");
+  }
 }
 
 export const config = {

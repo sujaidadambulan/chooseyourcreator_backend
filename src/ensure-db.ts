@@ -26,7 +26,30 @@ function portOpen(port: number): Promise<boolean> {
   });
 }
 
-async function canReachDatabase(databaseUrl: string): Promise<boolean> {
+function describeDatabaseUrl(databaseUrl: string): string {
+  try {
+    const normalized = databaseUrl.replace(/^postgres:\/\//, "postgresql://");
+    const u = new URL(normalized.replace(/^postgresql:\/\//, "http://"));
+    const port = u.port || "5432";
+    return `${u.hostname}:${port}`;
+  } catch {
+    return "(invalid DATABASE_URL)";
+  }
+}
+
+function validateProductionDatabaseUrl(databaseUrl: string, envName: string): void {
+  if (process.env.NODE_ENV !== "production") return;
+  const portMatch = databaseUrl.match(/:(\d{4,5})\//);
+  const port = portMatch?.[1] ?? "";
+  if (port === "6543" && !databaseUrl.includes("pgbouncer=true")) {
+    console.warn(
+      `${envName} uses transaction pooler port 6543 but is missing ?pgbouncer=true — Prisma often cannot connect. ` +
+        "Copy the full URI from Supabase (Connection pooling → Transaction) or use Session pooler :5432 for both env vars on Render.",
+    );
+  }
+}
+
+async function canReachDatabase(databaseUrl: string): Promise<{ ok: boolean; error?: string }> {
   const probeMs = process.env.NODE_ENV === "production" ? 20_000 : 4_000;
   const client = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
@@ -36,9 +59,10 @@ async function canReachDatabase(databaseUrl: string): Promise<boolean> {
         throw new Error("database probe timeout");
       }),
     ]);
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: message };
   } finally {
     await client.$disconnect().catch(() => undefined);
   }
@@ -170,7 +194,7 @@ export async function ensurePostgres(): Promise<void> {
     return;
   }
 
-  if (await canReachDatabase(databaseUrl)) {
+  if ((await canReachDatabase(databaseUrl)).ok) {
     return;
   }
 
@@ -198,7 +222,8 @@ export async function ensurePostgres(): Promise<void> {
     throw new Error(`PostgreSQL did not start on port ${config.pgPort}. Check ${dataDir}`);
   }
 
-  if (!(await canReachDatabase(databaseUrl))) {
+  const localProbe = await canReachDatabase(databaseUrl);
+  if (!localProbe.ok) {
     throw new Error(
       `PostgreSQL is running on port ${config.pgPort} but the app cannot connect. ` +
         `Verify DATABASE_URL in backend/.env matches user postgres / database drcollab.`,
@@ -232,11 +257,28 @@ export function applyProductionMigrations(): void {
 
 /** Fail fast at startup if the database is unreachable (no schema changes). */
 export async function verifyDatabaseConnection(databaseUrl = process.env.DATABASE_URL ?? config.databaseUrl): Promise<void> {
-  if (!(await canReachDatabase(databaseUrl))) {
-    throw new Error(
-      "Cannot connect to PostgreSQL. Check DATABASE_URL and that migrations have been applied (prisma migrate deploy).",
-    );
+  validateProductionDatabaseUrl(databaseUrl, "DATABASE_URL");
+  const directUrl = process.env.DIRECT_DATABASE_URL?.trim();
+  if (directUrl) validateProductionDatabaseUrl(directUrl, "DIRECT_DATABASE_URL");
+
+  const probe = await canReachDatabase(databaseUrl);
+  if (probe.ok) return;
+
+  const target = describeDatabaseUrl(databaseUrl);
+  let message =
+    `Cannot connect to PostgreSQL via DATABASE_URL (${target}). ${probe.error ?? "unknown error"}.`;
+
+  if (directUrl && directUrl !== databaseUrl) {
+    const directProbe = await canReachDatabase(directUrl);
+    if (directProbe.ok) {
+      message +=
+        " Migrations work via DIRECT_DATABASE_URL, but runtime DATABASE_URL failed. " +
+        "On Render Web Services, set DATABASE_URL to the same Supabase **Session** pooler URI as DIRECT_DATABASE_URL (port 5432 on *.pooler.supabase.com). " +
+        "If you use transaction pooler (6543), the URI must include ?pgbouncer=true.";
+    }
   }
+
+  throw new Error(message);
 }
 
 /**
