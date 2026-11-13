@@ -85,6 +85,13 @@ export function assertSafeProductionConfig(): void {
   if (!apiOrigin) {
     throw new Error("API_ORIGIN is required in production (e.g. https://api.chooseyourcreator.in)");
   }
+
+  if (!process.env.SMTP_USER?.trim() || !process.env.SMTP_PASS?.trim()) {
+    console.warn(
+      "SMTP_USER / SMTP_PASS are not set — email signup and password-reset codes will not send. " +
+        "Configure Gmail app password or another SMTP provider on Render.",
+    );
+  }
 }
 
 export const config = {
