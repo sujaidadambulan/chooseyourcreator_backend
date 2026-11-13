@@ -3,11 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { apiRoot, assertSafeProductionConfig, config } from "./config.js";
 import { disconnectDatabase, prisma } from "./db.js";
-import { ensurePostgres, verifyDatabaseConnection } from "./ensure-db.js";
+import { applyProductionMigrations, ensurePostgres, verifyDatabaseConnection } from "./ensure-db.js";
 
 async function main() {
   assertSafeProductionConfig();
   if (!process.env.DATABASE_URL) process.env.DATABASE_URL = config.databaseUrl;
+  applyProductionMigrations();
   await ensurePostgres();
   await verifyDatabaseConnection();
   const { createApp } = await import("./app.js");

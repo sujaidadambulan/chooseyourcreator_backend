@@ -27,11 +27,12 @@ function portOpen(port: number): Promise<boolean> {
 }
 
 async function canReachDatabase(databaseUrl: string): Promise<boolean> {
+  const probeMs = process.env.NODE_ENV === "production" ? 20_000 : 4_000;
   const client = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
     await Promise.race([
       client.$queryRaw`SELECT 1`,
-      delay(4000).then(() => {
+      delay(probeMs).then(() => {
         throw new Error("database probe timeout");
       }),
     ]);
@@ -201,6 +202,29 @@ export async function ensurePostgres(): Promise<void> {
     throw new Error(
       `PostgreSQL is running on port ${config.pgPort} but the app cannot connect. ` +
         `Verify DATABASE_URL in backend/.env matches user postgres / database drcollab.`,
+    );
+  }
+}
+
+/** Apply pending SQL migrations in production (Supabase session pooler via DIRECT_DATABASE_URL). */
+export function applyProductionMigrations(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (process.env.SKIP_PRISMA_MIGRATE === "1") return;
+
+  console.log("Applying database migrations (prisma migrate deploy)…");
+  try {
+    execSync("npx prisma migrate deploy", {
+      cwd: apiRoot,
+      stdio: "inherit",
+      env: process.env,
+      timeout: 180_000,
+    });
+  } catch (error) {
+    const hint =
+      "Ensure DIRECT_DATABASE_URL is the Supabase Session pooler (port 5432 on *.pooler.supabase.com), " +
+      "not db.*.supabase.co. DATABASE_URL should be the Transaction pooler (port 6543) with ?pgbouncer=true.";
+    throw new Error(
+      `prisma migrate deploy failed. ${hint} ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
