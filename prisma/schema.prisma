@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum Role {
+  BRAND
+  CREATOR
+  ADMIN
+}
+
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  PHONE
+}
+
+enum CampaignType {
+  PUBLIC
+  PRIVATE
+}
+
+enum CampaignStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  EXPIRED
+  CANCELLED
+}
+
+enum CollaborationStatus {
+  APPLIED
+  INVITED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  AGREEMENT_PENDING
+  PAYMENT_PENDING
+  ACTIVE
+  CONTENT_SUBMITTED
+  PAYMENT_REQUESTED
+  COMPLETED
+  EXPIRED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InvitationStatus {
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum AgreementStatus {
+  DRAFT
+  SENT
+  VIEWED
+  CREATOR_SIGNED
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum PaymentType {
+  INITIAL_HELD
+  PERFORMANCE_DIRECT
+}
+
+enum InitialPaymentStatus {
+  PENDING
+  PAYMENT_SUBMITTED
+  HELD
+  RELEASE_REQUESTED
+  RELEASE_AUTHORIZED
+  RELEASED
+  FAILED
+  REFUNDED
+}
+
+enum PerformancePaymentStatus {
+  PENDING
+  PAID_DIRECTLY
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String?      @unique
+  phone         String?      @unique
+  passwordHash  String?
+  googleId      String?      @unique
+  authProvider  AuthProvider
+  role          Role?
+  isBlocked     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  brandProfile  BrandProfile?
+  creatorProfile CreatorProfile?
+  sessions      Session[]
+  passwordResets PasswordReset[]
+  messages      Message[]
+  socialAccounts SocialAccount[]
+  notifications Notification[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model PhoneOtp {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+}
+
+model EmailOtp {
+  id          String   @id @default(cuid())
+  email       String
+  codeHash    String
+  type        String   // "SIGNUP" | "RESET"
+  pendingData Json?
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  sentAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([email, type])
+}
+
+model BrandProfile {
+  id                  String     @id @default(cuid())
+  referenceNumber     Int        @unique @default(autoincrement())
+  userId              String     @unique
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName         String
+  companyLogo         String?
+  bannerImage         String?
+  websiteUrl          String?
+  niche               String
+  employeeSize        String
+  role                String
+  businessDescription String
+  socialLinks         Json       @default("{}")
+  isVerified          Boolean    @default(false)
+  onboardingComplete  Boolean    @default(false)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  campaigns           Campaign[]
+}
+
+model SocialAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform     String
+  providerId   String
+  username     String   @default("")
+  displayName  String   @default("")
+  profileUrl   String
+  followers    Int
+  accessToken  String   @default("")
+  refreshToken String   @default("")
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, platform])
+}
+
+model CreatorProfile {
+  id                 String          @id @default(cuid())
+  referenceNumber    Int             @unique @default(autoincrement())
+  userId             String          @unique
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  profileImage       String?
+  bannerImage        String?
+  bio                String
+  city               String?
+  niche              String
+  socialPlatforms    String[]
+  socialLinks        Json            @default("{}")
+  followerCounts     Json            @default("{}")
+  followerRanges     Json            @default("{}")
+  totalFollowers     Int             @default(0)
+  engagementRate     Float?
+  pricing            Int?
+  isVerified         Boolean         @default(false)
+  onboardingComplete Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  collaborations     Collaboration[]
+  applications       Application[]
+  invitations        Invitation[]
+}
+
+model Campaign {
+  id               String         @id @default(cuid())
+  referenceNumber  Int            @unique @default(autoincrement())
+  brandId          String
+  brand            BrandProfile   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  title            String
+  productName      String
+  productDetails   String
+  description      String
+  campaignType     CampaignType
+  niche            String
+  platform         String
+  platforms        String[]       @default([])
+  priceRange       String         @default("")
+  estimatedPrice   Int
+  creatorSlots     Int
+  startDate        DateTime
+  endDate          DateTime
+  deliverables     String
+  requirements     String
+  instructions     String         @default("")
+  performanceTerms String         @default("")
+  status           CampaignStatus @default(DRAFT)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  applications     Application[]
+  invitations      Invitation[]
+  collaborations   Collaboration[]
+  agreements       Agreement[]
+  payments         Payment[]
+  submissions      Submission[]
+  conversations    Conversation[]
+
+  @@index([status, endDate])
+  @@index([campaignType, status])
+}
+
+model Collaboration {
+  id          String              @id @default(cuid())
+  campaignId  String
+  creatorId   String
+  campaign    Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator     CreatorProfile      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  status      CollaborationStatus
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  agreement   Agreement?
+  submissions Submission[]
+  review      CreatorReview?
+
+  @@unique([campaignId, creatorId])
+}
+
+model CreatorReview {
+  id              String        @id @default(cuid())
+  collaborationId String        @unique
+  collaboration   Collaboration @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  brandId         String
+  creatorId       String
+  rating          Int
+  comment         String        @default("")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([brandId])
+  @@index([creatorId])
+}
+
+model Application {
+  id         String            @id @default(cuid())
+  campaignId String
+  creatorId  String
+  campaign   Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator    CreatorProfile    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  status     ApplicationStatus @default(PENDING)
+  message    String            @default("")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@unique([campaignId, creatorId])
+}
+
+model Invitation {
+  id         String           @id @default(cuid())
+  campaignId String
+  creatorId  String
+  campaign   Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator    CreatorProfile   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  status     InvitationStatus @default(SENT)
+  message    String           @default("")
+  expiresAt  DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([campaignId, creatorId])
+}
+
+model Conversation {
+  id         String    @id @default(cuid())
+  campaignId String
+  brandId    String
+  creatorId  String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  messages   Message[]
+
+  @@unique([campaignId, brandId, creatorId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  content        String
+  mediaKey       String?
+  mediaMimeType  String?
+  createdAt      DateTime     @default(now())
+}
+
+model Agreement {
+  id                   String          @id @default(cuid())
+  campaignId           String
+  brandId              String
+  creatorId            String
+  collaborationId      String          @unique
+  collaboration        Collaboration   @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  campaign             Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  agreementData        Json
+  performanceTiers     Json            @default("[]")
+  campaignStartDate    DateTime?
+  campaignEndDate      DateTime?
+  pdfKey               String?
+  signedPdfKey         String?
+  status               AgreementStatus @default(DRAFT)
+  creatorSignedAt      DateTime?
+  creatorSignatureName String?
+  brandSignedAt        DateTime?
+  brandSignatureName   String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  performancePaymentRequests PerformancePaymentRequest[]
+}
+
+model Payment {
+  id                String                    @id @default(cuid())
+  campaignId        String
+  creatorId         String
+  brandId           String
+  campaign          Campaign                  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  type              PaymentType
+  amount            Int
+  currency          String                    @default("INR")
+  initialStatus     InitialPaymentStatus?
+  performanceStatus PerformancePaymentStatus?
+  providerReference String?
+  providerPaymentId String?
+  offlineReference  String?
+  offlineProofUrl   String?
+  verifiedByAdminAt DateTime?
+  disbursedByAdminAt DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([campaignId, creatorId])
+}
+
+model Submission {
+  id                    String           @id @default(cuid())
+  campaignId            String
+  creatorId             String
+  collaborationId       String
+  campaign              Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  collaboration         Collaboration    @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  contentKey            String?
+  socialUrl             String?
+  caption               String           @default("")
+  notes                 String           @default("")
+  status                SubmissionStatus @default(SUBMITTED)
+  changeRequestReason   String?
+  changeRequestedAt     DateTime?
+  submittedAt           DateTime         @default(now())
+  reviewedAt            DateTime?
+}
+
+enum PerformancePaymentRequestStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model PerformancePaymentRequest {
+  id           String                          @id @default(cuid())
+  agreementId  String
+  agreement    Agreement                       @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  campaignId   String
+  creatorId    String
+  brandId      String
+  tierIndex    Int
+  viewsTarget  Int
+  amount       Int
+  currentViews Int                             @default(0)
+  proofUrl     String?
+  status       PerformancePaymentRequestStatus @default(PENDING)
+  createdAt    DateTime                        @default(now())
+  updatedAt    DateTime                        @updatedAt
+
+  @@index([agreementId, tierIndex])
+  @@index([creatorId, status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
