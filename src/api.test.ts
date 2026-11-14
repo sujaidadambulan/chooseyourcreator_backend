@@ -74,6 +74,7 @@ const creatorProfile = {
   bio: "Strength training and product films.",
   city: "Mumbai",
   niche: "Fitness",
+  gpayUpi: "+919876543210",
   socialPlatforms: ["Instagram"],
   socialLinks: { instagram: "https://instagram.com/aanya" },
   followerCounts: { Instagram: 10000 },

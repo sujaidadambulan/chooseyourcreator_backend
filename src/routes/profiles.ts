@@ -4,6 +4,7 @@ import {
   FOLLOWER_ESTIMATES,
   NICHES,
   PLATFORMS,
+  normalizeGpayUpi,
 } from "../shared/index.js";
 import { Router } from "express";
 import multer from "multer";
@@ -84,6 +85,7 @@ const creatorSchema = z.object({
   bio: z.string().trim().min(10, "Please write a short bio."),
   city: z.string().trim().min(2, "Please enter your city."),
   niche: z.enum(NICHES, { errorMap: () => ({ message: "Please select a niche." }) }),
+  gpayUpi: z.string().trim().min(3, "Enter your GPay or UPI number for payouts."),
   socialPlatforms: z.array(z.enum(PLATFORMS)).min(1, "Add at least one social media profile link."),
   socialLinks: socialSchema.optional(),
   followerCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
@@ -105,6 +107,13 @@ const creatorSchema = z.object({
     )
     .optional(),
 }).superRefine((body, context) => {
+  if (!normalizeGpayUpi(body.gpayUpi)) {
+    context.addIssue({
+      code: "custom",
+      message: "Enter a valid UPI ID (e.g. name@okaxis) or 10-digit mobile number.",
+      path: ["gpayUpi"],
+    });
+  }
   let hasValidSocial = false;
   for (const platform of body.socialPlatforms) {
     if (platform === "Other") continue;
@@ -370,11 +379,14 @@ creatorRouter.put(
       socialLinks[key] = (body.socialLinks as Record<string, string | undefined> | undefined)?.[key]?.trim() ?? "";
     }
     const totalFollowers = Object.values(counts).reduce((sum, value) => sum + value, 0);
+    const gpayUpi = normalizeGpayUpi(body.gpayUpi);
+    if (!gpayUpi) throw new HttpError(400, "Enter a valid UPI ID or mobile number for payouts.");
     const data = {
       name: body.name,
       bio: body.bio,
       city: body.city,
       niche: body.niche,
+      gpayUpi,
       socialPlatforms: body.socialPlatforms,
       socialLinks,
       followerCounts: counts,

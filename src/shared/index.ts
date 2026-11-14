@@ -365,6 +365,17 @@ export function normalizeIndianPhone(input: string): string | null {
   return `+91${local}`;
 }
 
+/** Normalizes a UPI ID or Indian mobile number for creator payout details. */
+export function normalizeGpayUpi(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const phone = normalizeIndianPhone(trimmed);
+  if (phone) return phone;
+  const upi = trimmed.toLowerCase();
+  if (/^[a-z0-9.\-_]{2,256}@[a-z0-9.\-_]{2,64}$/i.test(upi)) return upi;
+  return null;
+}
+
 export const BRAND = {
   name: "ChooseYourCreator",
   tagline: "Creator–Brand Collaboration Platform",

@@ -222,6 +222,7 @@ model CreatorProfile {
   totalFollowers     Int             @default(0)
   engagementRate     Float?
   pricing            Int?
+  gpayUpi            String?
   isVerified         Boolean         @default(false)
   onboardingComplete Boolean         @default(false)
   createdAt          DateTime        @default(now())

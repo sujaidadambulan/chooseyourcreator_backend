@@ -75,9 +75,14 @@ discoveryRouter.get(
       });
     }
 
-    res.json({ creators: filtered });
+    res.json({ creators: filtered.map(stripCreatorPayoutDetails) });
   }),
 );
+
+function stripCreatorPayoutDetails<T extends { gpayUpi?: string | null }>(profile: T) {
+  const { gpayUpi: _removed, ...rest } = profile;
+  return rest;
+}
 
 discoveryRouter.get(
   "/brand/creators/:id",
@@ -85,7 +90,7 @@ discoveryRouter.get(
   asyncHandler(async (req, res) => {
     const creator = await prisma.creatorProfile.findUnique({ where: { id: String(req.params.id) } });
     if (!creator || !creator.onboardingComplete) throw new HttpError(404, "Creator not found");
-    res.json({ creator });
+    res.json({ creator: stripCreatorPayoutDetails(creator) });
   }),
 );
 

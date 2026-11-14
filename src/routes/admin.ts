@@ -250,6 +250,40 @@ adminRouter.post(
   }),
 );
 
+adminRouter.delete(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const targetId = String(req.params.id);
+    if (targetId === req.user!.id) {
+      throw new HttpError(400, "You cannot delete your own admin account");
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: targetId },
+      include: { brandProfile: true, creatorProfile: true },
+    });
+    if (!user) throw new HttpError(404, "User not found");
+    if (user.role === "ADMIN") throw new HttpError(400, "Cannot delete an admin user");
+
+    try {
+      await prisma.$transaction([
+        prisma.message.deleteMany({ where: { senderId: user.id } }),
+        prisma.session.deleteMany({ where: { userId: user.id } }),
+        prisma.notification.deleteMany({ where: { userId: user.id } }),
+        prisma.socialAccount.deleteMany({ where: { userId: user.id } }),
+        prisma.passwordReset.deleteMany({ where: { userId: user.id } }),
+        prisma.user.delete({ where: { id: user.id } }),
+      ]);
+    } catch {
+      throw new HttpError(
+        400,
+        "Could not delete this account because of linked records. Try blocking the user instead.",
+      );
+    }
+
+    res.json({ ok: true, message: "User deleted successfully." });
+  }),
+);
+
 // Toggle block / unblock status for a user
 adminRouter.post(
   "/users/:id/block",

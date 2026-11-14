@@ -48,6 +48,7 @@ const brandProfile = {
 };
 
 const creatorProfile = {
+  gpayUpi: "+919876543210",
   name: "Aanya Shah",
   bio: "Strength training and product films.",
   city: "Mumbai",
@@ -222,5 +223,32 @@ describe("Stage 1 security hardening", () => {
     const released = await admin.post(`/api/admin/payments/${initial.id}/confirm-disbursal`);
     expect(released.status).toBe(200);
     expect(released.body.payment.initialStatus).toBe("RELEASED");
+  });
+
+  it("allows admins to delete brand and creator accounts", async () => {
+    const { agent: brand } = await registerUser("delete-brand@example.com", "BRAND");
+    const brandMe = await brand.get("/api/auth/me");
+    const brandUserId = brandMe.body.user.id as string;
+
+    const { agent: creator } = await registerUser("delete-creator@example.com", "CREATOR");
+    const creatorMe = await creator.get("/api/auth/me");
+    const creatorUserId = creatorMe.body.user.id as string;
+
+    const admin = await createAdminAgent("admin-delete@example.com");
+
+    const forbidAdmin = await admin.delete(`/api/admin/users/${(await admin.get("/api/auth/me")).body.user.id}`);
+    expect(forbidAdmin.status).toBe(400);
+
+    const deletedBrand = await admin.delete(`/api/admin/users/${brandUserId}`);
+    expect(deletedBrand.status).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: brandUserId } })).toBeNull();
+
+    const deletedCreator = await admin.delete(`/api/admin/users/${creatorUserId}`);
+    expect(deletedCreator.status).toBe(200);
+    expect(await prisma.user.findUnique({ where: { id: creatorUserId } })).toBeNull();
+
+    const { agent: outsider } = await registerUser("delete-outsider@example.com", "BRAND");
+    const nonAdmin = await outsider.delete(`/api/admin/users/${creatorUserId}`);
+    expect(nonAdmin.status).toBe(403);
   });
 });
